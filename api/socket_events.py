@@ -9,6 +9,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from game.manager import GameManager
 from game.models import GameState
 from api.opentdb import opentdb
+from metrics import PLAYERS_JOINED_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ def register_events(socketio: SocketIO, gm: GameManager):
         if not game:
             emit("error", {"message": "Game not found"})
             return
+        orig_game = game
 
         if is_host:
             # Host created via REST, now connecting via socket
@@ -81,15 +83,23 @@ def register_events(socketio: SocketIO, gm: GameManager):
                 if not game_check:
                     emit("error", {"message": error})
                     return
+                # Restore host status — disconnect may have promoted another player
+                gm.restore_host(game, sid)
         else:
-            # Mark old entry disconnected so join_game can reconnect by name
-            gm.mark_disconnected_by_name(game, player_name)
             game, error = gm.join_game(game_id, player_name, sid)
             if not game:
-                emit("error", {"message": error})
-                return
+                # During an active game the only valid join is a reconnect.
+                # Handle the race where the old socket disconnect hasn't
+                # been processed yet by marking the stale entry disconnected.
+                if orig_game.state != GameState.LOBBY:
+                    gm.mark_disconnected_by_name(orig_game, player_name)
+                    game, error = gm.join_game(game_id, player_name, sid)
+                if not game:
+                    emit("error", {"message": error})
+                    return
 
         join_room(game_id)
+        PLAYERS_JOINED_TOTAL.inc()
 
         # Send current state to the joining player
         emit("game_state", {

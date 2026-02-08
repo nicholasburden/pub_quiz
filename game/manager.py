@@ -14,7 +14,14 @@ from config import (
     MIN_TIME_LIMIT,
 )
 from game.models import Game, GameConfig, GameState, Player, Question
-from game.scoring import calculate_score
+from game.scoring import calculate_scores
+from metrics import (
+    ANSWER_TIME_SECONDS,
+    GAMES_CREATED_TOTAL,
+    GAMES_DELETED_TOTAL,
+    GAMES_FINISHED_TOTAL,
+    QUESTIONS_ANSWERED_TOTAL,
+)
 
 
 class GameManager:
@@ -32,6 +39,7 @@ class GameManager:
         game.players[sid] = player
         self.games[game_id] = game
         self.player_game[sid] = game_id
+        GAMES_CREATED_TOTAL.inc()
         return game
 
     def join_game(self, game_id: str, player_name: str, sid: str) -> tuple[Game | None, str]:
@@ -113,7 +121,20 @@ class GameManager:
         for p_sid in list(game.players.keys()):
             self.player_game.pop(p_sid, None)
         del self.games[game_id]
+        GAMES_DELETED_TOTAL.inc()
         return True
+
+    def restore_host(self, game: Game, sid: str):
+        """Restore host status to the given sid, demoting the current host."""
+        if game.host_sid == sid:
+            return
+        old_host = game.players.get(game.host_sid)
+        if old_host:
+            old_host.is_host = False
+        player = game.players.get(sid)
+        if player:
+            player.is_host = True
+            game.host_sid = sid
 
     def mark_disconnected_by_name(self, game: Game, player_name: str):
         """Mark a player as disconnected by name, so reconnect-by-name can find them.
@@ -201,6 +222,7 @@ class GameManager:
         idx = game.current_question_index
         if idx >= len(game.questions):
             game.state = GameState.FINISHED
+            GAMES_FINISHED_TOTAL.inc()
             return None
 
         game.state = GameState.QUESTION_ACTIVE
@@ -223,6 +245,7 @@ class GameManager:
 
         player.current_answer = answer
         player.answer_time = time.time() - game.question_start_time
+        ANSWER_TIME_SECONDS.observe(player.answer_time)
         return True
 
     def all_connected_answered(self, game: Game) -> bool:
@@ -235,14 +258,22 @@ class GameManager:
         """Calculate results for the current question. Returns results dict."""
         game.state = GameState.QUESTION_RESULTS
         question = game.questions[game.current_question_index]
-        player_results = []
 
+        # Rank correct players by speed (fastest first)
+        correct_players = [
+            (p, p.answer_time)
+            for p in game.players.values()
+            if p.current_answer == question.correct_answer and p.answer_time is not None
+        ]
+        correct_players.sort(key=lambda x: x[1])
+        scores = calculate_scores(correct_players)
+
+        player_results = []
         for p in game.players.values():
             correct = p.current_answer == question.correct_answer
-            earned = 0
-            if correct and p.answer_time is not None:
-                earned = calculate_score(True, p.answer_time, game.config.time_limit)
+            earned = scores.get(id(p), 0)
             p.score += earned
+            QUESTIONS_ANSWERED_TOTAL.labels(result="correct" if correct else "wrong").inc()
 
             player_results.append({
                 "name": p.name,

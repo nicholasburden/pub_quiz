@@ -435,8 +435,7 @@ class TestAnswering:
         assert qr is not None
         pr = qr["player_results"][0]
         assert pr["correct"] is True
-        assert pr["score_earned"] > 0
-        assert pr["score_earned"] >= 1000  # BASE_SCORE
+        assert pr["score_earned"] == 10  # BASE_SCORE, no speed bonus for solo
 
         host.disconnect()
 
@@ -593,7 +592,7 @@ class TestSinglePlayerLifecycle:
             assert qr is not None
             pr = qr["player_results"][0]
             assert pr["correct"] is True
-            assert pr["score_earned"] >= 1000
+            assert pr["score_earned"] == 10  # solo player, no speed bonus
             cumulative_score += pr["score_earned"]
             assert pr["total_score"] == cumulative_score
 
@@ -613,7 +612,7 @@ class TestSinglePlayerLifecycle:
 
         game = gm.get_game(game_id)
         assert game.state == GameState.FINISHED
-        assert cumulative_score >= 5000  # At least 5 * BASE_SCORE
+        assert cumulative_score == 50  # 5 * BASE_SCORE (10), no speed bonus solo
 
         host.disconnect()
 

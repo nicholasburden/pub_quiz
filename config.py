@@ -20,8 +20,7 @@ MIN_TIME_LIMIT = 10
 MAX_TIME_LIMIT = 60
 
 # Scoring
-BASE_SCORE = 1000
-MAX_SPEED_BONUS = 500
+BASE_SCORE = 10
 
 # Timing
 QUESTION_RESULTS_DELAY = 10  # seconds before auto-advance

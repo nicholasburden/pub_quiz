@@ -1,18 +1,21 @@
 """Scoring logic for the pub quiz."""
 
-from config import BASE_SCORE, MAX_SPEED_BONUS
+from config import BASE_SCORE
 
 
-def calculate_score(correct: bool, answer_time: float, time_limit: int) -> int:
-    """Calculate score for an answer.
+def calculate_scores(correct_players: list) -> dict:
+    """Calculate scores for all correct players based on speed rank.
 
-    Correct: 1000 base + up to 500 speed bonus (linear decay over time limit).
-    Wrong / no answer: 0 points.
+    correct_players: list of (player, answer_time) sorted fastest-first.
+    Returns {player: points_earned}.
+
+    Correct answer: BASE_SCORE (10) + speed bonus.
+    Speed bonus: slowest correct = 0, second-slowest = 1, … fastest = N-1.
+    Wrong / no answer: 0 (not passed in).
     """
-    if not correct:
-        return 0
-
-    elapsed = max(0.0, min(answer_time, float(time_limit)))
-    fraction_remaining = 1.0 - (elapsed / float(time_limit))
-    speed_bonus = int(MAX_SPEED_BONUS * fraction_remaining)
-    return BASE_SCORE + speed_bonus
+    n = len(correct_players)
+    scores = {}
+    for rank, (player, _answer_time) in enumerate(correct_players):
+        speed_bonus = (n - 1) - rank  # fastest (rank 0) gets n-1
+        scores[id(player)] = BASE_SCORE + speed_bonus
+    return scores
