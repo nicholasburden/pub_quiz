@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Quiz - {{ game_name }}{% endblock %}
+{% block content %}
+<header class="quiz-header">
+    <div class="quiz-info">
+        <span id="question-counter">Question 1 / 10</span>
+        <span id="category-badge" class="badge"></span>
+        <span id="difficulty-badge" class="badge"></span>
+    </div>
+    <div id="timer-bar" class="timer-bar">
+        <div id="timer-fill" class="timer-fill"></div>
+    </div>
+    <div id="timer-text" class="timer-text">30s</div>
+</header>
+
+<section id="question-section" class="card question-card">
+    <h2 id="question-text">Waiting for question...</h2>
+    <div id="answers-container" class="answers-grid"></div>
+    <p id="answer-status" class="muted" style="display: none;"></p>
+</section>
+
+<section id="results-section" class="card" style="display: none;">
+    <h2>Results</h2>
+    <p id="correct-answer-display" class="correct-answer"></p>
+    <div id="per-player-results"></div>
+    <div id="mini-leaderboard"></div>
+    <div id="next-countdown" class="muted"></div>
+    <button id="next-btn" class="btn btn-primary" style="display: none;">Next Question</button>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.GAME_ID = "{{ game_id }}";
+    window.GAME_NAME = "{{ game_name }}";
+</script>
+<script src="/static/js/quiz.js"></script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Lobby - {{ game_name }}{% endblock %}
+{% block content %}
+<header>
+    <h1>{{ game_name }}</h1>
+    <p class="subtitle">Game Code: <span class="code">{{ game_id }}</span></p>
+</header>
+
+<div class="lobby-layout">
+    <section id="config-section" class="card" style="display: none;">
+        <h2>Game Settings</h2>
+        <form id="config-form">
+            <div class="form-group">
+                <label>Categories</label>
+                <div id="category-list" class="checkbox-grid">
+                    <p class="muted">Loading categories...</p>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="difficulty">Difficulty</label>
+                <select id="difficulty">
+                    <option value="mixed" selected>Mixed</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="num-questions">Questions: <span id="num-questions-val">10</span></label>
+                <input type="range" id="num-questions" min="5" max="50" value="10" step="1">
+            </div>
+            <div class="form-group">
+                <label for="time-limit">Time per Question: <span id="time-limit-val">30</span>s</label>
+                <input type="range" id="time-limit" min="10" max="60" value="30" step="5">
+            </div>
+        </form>
+        <button id="start-btn" class="btn btn-primary btn-large">Start Game</button>
+        <button id="delete-btn" class="btn btn-ghost btn-large">Delete Game</button>
+    </section>
+
+    <section id="players-section" class="card">
+        <h2>Players <span id="player-count" class="badge">0</span></h2>
+        <ul id="player-list" class="player-list"></ul>
+        <p id="waiting-msg" class="muted">Waiting for the host to start...</p>
+    </section>
+</div>
+
+<div id="starting-overlay" class="overlay" style="display: none;">
+    <div class="overlay-content">
+        <div class="spinner"></div>
+        <p>Fetching questions...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.GAME_ID = "{{ game_id }}";
+    window.GAME_NAME = "{{ game_name }}";
+</script>
+<script src="/static/js/lobby.js"></script>
+{% endblock %}

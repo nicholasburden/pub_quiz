@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Pub Quiz - Home{% endblock %}
+{% block content %}
+<header>
+    <h1>Pub Quiz</h1>
+    <p class="subtitle">Create or join a game on your local network</p>
+</header>
+
+<section id="create-section" class="card">
+    <h2>Create a Game</h2>
+    <form id="create-form">
+        <div class="form-group">
+            <label for="game-name">Game Name</label>
+            <input type="text" id="game-name" placeholder="Friday Night Trivia" maxlength="30" required>
+        </div>
+        <div class="form-group">
+            <label for="host-name">Your Name</label>
+            <input type="text" id="host-name" placeholder="Quizmaster" maxlength="30" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Game</button>
+    </form>
+</section>
+
+<section id="join-section" class="card">
+    <h2>Join a Game</h2>
+    <div id="game-list">
+        <p class="muted">Looking for games...</p>
+    </div>
+    <div id="join-form-container" style="display: none;">
+        <form id="join-form">
+            <input type="hidden" id="join-game-id">
+            <div class="form-group">
+                <label for="player-name">Your Name</label>
+                <input type="text" id="player-name" placeholder="Enter your name" maxlength="30" required>
+            </div>
+            <button type="submit" class="btn btn-secondary">Join</button>
+            <button type="button" id="cancel-join" class="btn btn-ghost">Cancel</button>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/home.js"></script>
+{% endblock %}
