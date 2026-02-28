@@ -85,6 +85,32 @@ class OpenTDBClient:
             logger.exception("Failed to fetch categories")
             return self._categories_cache or []
 
+    def fetch_questions_progressive(
+        self,
+        amount: int,
+        categories: list[int] | None = None,
+        difficulty: str = "mixed",
+    ):
+        """Yield question batches as they arrive (one per category)."""
+        token = self._get_token()
+
+        if not categories:
+            batch = self._fetch_batch(amount, None, difficulty, token)
+            if batch:
+                yield batch
+            return
+
+        per_cat = max(1, math.floor(amount / len(categories)))
+        remainder = amount - per_cat * len(categories)
+
+        for i, cat_id in enumerate(categories):
+            n = per_cat + (1 if i < remainder else 0)
+            if n <= 0:
+                continue
+            batch = self._fetch_batch(n, cat_id, difficulty, token)
+            if batch:
+                yield batch
+
     def fetch_questions(
         self,
         amount: int,

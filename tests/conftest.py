@@ -183,7 +183,8 @@ def app_env():
     with patch("api.socket_events.opentdb") as mock_otdb, \
          patch("api.routes.opentdb") as mock_otdb_routes:
         mock_otdb.fetch_questions.return_value = list(FAKE_QUESTIONS)
+        mock_otdb.fetch_questions_progressive.side_effect = lambda *a, **kw: iter([list(FAKE_QUESTIONS)])
         mock_otdb.get_categories.return_value = list(FAKE_CATEGORIES)
         mock_otdb_routes.get_categories.return_value = list(FAKE_CATEGORIES)
 
-        yield app, sio, gm, mock_otdb.fetch_questions, mock_otdb.get_categories
+        yield app, sio, gm, mock_otdb.fetch_questions, mock_otdb.get_categories, mock_otdb.fetch_questions_progressive

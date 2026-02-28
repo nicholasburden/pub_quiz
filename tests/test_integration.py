@@ -282,12 +282,13 @@ class TestGameStart:
         nq = get_event(received, "new_question")
         assert nq is not None
         assert nq["question_number"] == 1
-        assert nq["total_questions"] == 5
+        game = gm.get_game(game_id)
+        assert nq["total_questions"] == game.config.num_questions
 
         host.disconnect()
 
     def test_fetch_called_with_config(self, app_env):
-        app, sio, gm, mock_fetch, *_ = app_env
+        app, sio, gm, mock_fetch, mock_cats, mock_fetch_prog = app_env
         game_id = create_game_rest(app)
         host = host_join(sio, app, game_id)
 
@@ -299,12 +300,12 @@ class TestGameStart:
         host.get_received()
 
         # Update mock to return enough questions for 15
-        mock_fetch.return_value = make_fake_questions(15)
+        mock_fetch_prog.side_effect = lambda *a, **kw: iter([make_fake_questions(15)])
 
         host.emit("start_game")
         host.get_received()
 
-        mock_fetch.assert_called_once_with(
+        mock_fetch_prog.assert_called_once_with(
             amount=15,
             categories=[9, 18],
             difficulty="easy",
@@ -333,8 +334,8 @@ class TestGameStart:
         p1.disconnect()
 
     def test_fetch_failure_returns_error(self, app_env):
-        app, sio, gm, mock_fetch, *_ = app_env
-        mock_fetch.return_value = []  # empty = failure
+        app, sio, gm, mock_fetch, mock_cats, mock_fetch_prog = app_env
+        mock_fetch_prog.side_effect = lambda *a, **kw: iter([])  # empty = failure
 
         game_id = create_game_rest(app)
         host = host_join(sio, app, game_id)

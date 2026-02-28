@@ -21,6 +21,7 @@ class Player:
     answer_time: float | None = None
     is_host: bool = False
     connected: bool = True
+    lifelines_used: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -38,6 +39,7 @@ class GameConfig:
     difficulty: str = "mixed"
     num_questions: int = 10
     time_limit: int = 30
+    lifelines: bool = True
 
 
 @dataclass
@@ -51,3 +53,4 @@ class Game:
     questions: list[Question] = field(default_factory=list)
     current_question_index: int = -1
     question_start_time: float = 0.0
+    questions_expected: int = 0

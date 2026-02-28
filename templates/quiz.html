@@ -13,6 +13,33 @@
     <div id="timer-text" class="timer-text">30s</div>
 </header>
 
+<div id="lifelines-bar" class="lifelines-bar" style="display: none;">
+    <button id="lifeline-5050" class="lifeline-btn" title="50:50 — Remove two wrong answers">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="2"/>
+            <text x="12" y="13" text-anchor="middle" dominant-baseline="middle" fill="currentColor" font-size="7" font-weight="700">50:50</text>
+        </svg>
+        <span>50:50</span>
+    </button>
+    <button id="lifeline-ata" class="lifeline-btn" title="Ask the Audience">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="14" width="4" height="8" rx="1" fill="currentColor"/>
+            <rect x="8" y="8" width="4" height="14" rx="1" fill="currentColor"/>
+            <rect x="14" y="11" width="4" height="11" rx="1" fill="currentColor"/>
+            <rect x="20" y="4" width="4" height="18" rx="1" fill="currentColor" opacity="0.7"/>
+        </svg>
+        <span>Ask the Audience</span>
+    </button>
+</div>
+
+<div id="ata-overlay" class="ata-overlay" style="display: none;">
+    <div class="ata-modal">
+        <h3>Audience Results</h3>
+        <div id="ata-bars"></div>
+        <button id="ata-close" class="btn btn-secondary" style="margin-top: 1rem;">Close</button>
+    </div>
+</div>
+
 <section id="question-section" class="card question-card">
     <h2 id="question-text">Waiting for question...</h2>
     <div id="answers-container" class="answers-grid"></div>

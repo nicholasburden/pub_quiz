@@ -100,6 +100,7 @@ function applyConfig(config) {
     document.getElementById('num-questions-val').textContent = config.num_questions;
     document.getElementById('time-limit').value = config.time_limit;
     document.getElementById('time-limit-val').textContent = config.time_limit;
+    document.getElementById('lifelines-toggle').checked = config.lifelines;
 }
 
 // --- Config changes ---
@@ -109,11 +110,13 @@ function sendConfig() {
     const difficulty = document.getElementById('difficulty').value;
     const num_questions = parseInt(document.getElementById('num-questions').value);
     const time_limit = parseInt(document.getElementById('time-limit').value);
+    const lifelines = document.getElementById('lifelines-toggle').checked;
 
-    socket.emit('update_config', { categories, difficulty, num_questions, time_limit });
+    socket.emit('update_config', { categories, difficulty, num_questions, time_limit, lifelines });
 }
 
 document.getElementById('difficulty').addEventListener('change', sendConfig);
+document.getElementById('lifelines-toggle').addEventListener('change', sendConfig);
 document.getElementById('num-questions').addEventListener('input', (e) => {
     document.getElementById('num-questions-val').textContent = e.target.value;
     sendConfig();

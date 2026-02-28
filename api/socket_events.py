@@ -1,6 +1,7 @@
 """Socket.IO event handlers for the core game flow."""
 
 import logging
+import random
 import time
 
 from flask import request
@@ -21,7 +22,8 @@ def register_events(socketio: SocketIO, gm: GameManager):
 
     def _players_list(game):
         return [
-            {"name": p.name, "score": p.score, "is_host": p.is_host, "connected": p.connected}
+            {"name": p.name, "score": p.score, "is_host": p.is_host, "connected": p.connected,
+             "lifelines_used": list(p.lifelines_used)}
             for p in game.players.values()
         ]
 
@@ -32,6 +34,7 @@ def register_events(socketio: SocketIO, gm: GameManager):
             "difficulty": cfg.difficulty,
             "num_questions": cfg.num_questions,
             "time_limit": cfg.time_limit,
+            "lifelines": cfg.lifelines,
         }
 
     @socketio.on("connect")
@@ -145,23 +148,29 @@ def register_events(socketio: SocketIO, gm: GameManager):
 
         emit("game_starting", {"message": "Fetching questions..."}, room=game.id)
 
-        # Fetch questions in background to avoid blocking
         cfg = game.config
-        questions = opentdb.fetch_questions(
+        progressive = opentdb.fetch_questions_progressive(
             amount=cfg.num_questions,
             categories=cfg.categories if cfg.categories else None,
             difficulty=cfg.difficulty,
         )
 
-        if not questions:
+        # Get first batch synchronously
+        first_batch = next(progressive, [])
+        if not first_batch:
             emit("error", {"message": "Failed to fetch questions from OpenTDB. Please try again."})
             return
 
-        gm.set_questions(game, questions)
+        gm.set_questions(game, list(first_batch), cfg.num_questions)
 
         emit("game_started", {
-            "total_questions": len(game.questions),
+            "total_questions": game.questions_expected,
         }, room=game.id)
+
+        # Fetch remaining batches in background
+        socketio.start_background_task(
+            _fetch_remaining, socketio, gm, game, progressive
+        )
 
         # Start the first question after a brief delay
         socketio.sleep(1)
@@ -192,6 +201,18 @@ def register_events(socketio: SocketIO, gm: GameManager):
 
         if gm.all_connected_answered(game):
             _end_question(socketio, gm, game)
+
+    @socketio.on("use_lifeline")
+    def on_use_lifeline(data):
+        sid = request.sid
+        game, player = gm.get_player_game(sid)
+        if not game or not player:
+            return
+
+        lifeline_type = data.get("lifeline", "")
+        result = gm.use_lifeline(game, sid, lifeline_type)
+        if result:
+            emit("lifeline_result", result)
 
     @socketio.on("next_question")
     def on_next_question():
@@ -231,22 +252,49 @@ def register_events(socketio: SocketIO, gm: GameManager):
         gm.delete_game(game_id, sid)
 
 
+def _fetch_remaining(socketio: SocketIO, gm: GameManager, game, progressive):
+    """Background task to fetch remaining question batches."""
+    for batch in progressive:
+        if game.state == GameState.FINISHED or game.id not in gm.games:
+            return
+        random.shuffle(batch)
+        gm.append_questions(game, batch)
+
+
 def _send_next_question(socketio: SocketIO, gm: GameManager, game):
     question = gm.advance_question(game)
+
+    # If question not loaded yet, wait for background fetch
+    if not question and game.state != GameState.FINISHED:
+        for _ in range(30):  # wait up to 15s
+            socketio.sleep(0.5)
+            if game.current_question_index < len(game.questions):
+                question = game.questions[game.current_question_index]
+                game.state = GameState.QUESTION_ACTIVE
+                game.question_start_time = time.time()
+                for p in game.players.values():
+                    p.current_answer = None
+                    p.answer_time = None
+                break
+        if not question:
+            # Timed out waiting — end game with what we have
+            game.questions_expected = len(game.questions)
+            game.state = GameState.FINISHED
+
     if not question:
-        # Game finished
         rankings = gm.get_final_rankings(game)
         socketio.emit("game_finished", {"rankings": rankings}, room=game.id)
         return
 
     socketio.emit("new_question", {
         "question_number": game.current_question_index + 1,
-        "total_questions": len(game.questions),
+        "total_questions": game.questions_expected,
         "text": question.text,
         "answers": question.all_answers,
         "category": question.category,
         "difficulty": question.difficulty,
         "time_limit": game.config.time_limit,
+        "lifelines": game.config.lifelines,
     }, room=game.id)
 
     # Start countdown timer

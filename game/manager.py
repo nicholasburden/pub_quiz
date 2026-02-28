@@ -1,6 +1,7 @@
 """GameManager: in-memory state store for all game mutations."""
 
 import html
+import random
 import secrets
 import time
 
@@ -211,18 +212,28 @@ class GameManager:
         if "time_limit" in config_data:
             t = int(config_data["time_limit"])
             cfg.time_limit = max(MIN_TIME_LIMIT, min(MAX_TIME_LIMIT, t))
+        if "lifelines" in config_data:
+            cfg.lifelines = bool(config_data["lifelines"])
 
-    def set_questions(self, game: Game, questions: list[Question]):
+    def set_questions(self, game: Game, questions: list[Question], expected_total: int = 0):
         game.questions = questions
+        game.questions_expected = expected_total or len(questions)
         game.current_question_index = -1
         game.state = GameState.PLAYING
+
+    def append_questions(self, game: Game, new_questions: list[Question]):
+        game.questions.extend(new_questions)
 
     def advance_question(self, game: Game) -> Question | None:
         game.current_question_index += 1
         idx = game.current_question_index
-        if idx >= len(game.questions):
+        if idx >= game.questions_expected:
             game.state = GameState.FINISHED
             GAMES_FINISHED_TOTAL.inc()
+            return None
+
+        # Question not yet loaded (background fetch in progress)
+        if idx >= len(game.questions):
             return None
 
         game.state = GameState.QUESTION_ACTIVE
@@ -289,7 +300,7 @@ class GameManager:
         return {
             "correct_answer": question.correct_answer,
             "question_number": game.current_question_index + 1,
-            "total_questions": len(game.questions),
+            "total_questions": game.questions_expected,
             "player_results": player_results,
             "leaderboard": [
                 {"name": r["name"], "score": r["total_score"]}
@@ -306,14 +317,77 @@ class GameManager:
             for i, p in enumerate(rankings)
         ]
 
+    def use_lifeline(self, game: Game, sid: str, lifeline_type: str) -> dict | None:
+        """Use a lifeline. Returns result dict or None on failure."""
+        if not game.config.lifelines:
+            return None
+        if game.state != GameState.QUESTION_ACTIVE:
+            return None
+        if lifeline_type not in ("fifty_fifty", "ask_the_audience"):
+            return None
+
+        player = game.players.get(sid)
+        if not player:
+            return None
+        if lifeline_type in player.lifelines_used:
+            return None
+
+        question = game.questions[game.current_question_index]
+        player.lifelines_used.add(lifeline_type)
+
+        if lifeline_type == "fifty_fifty":
+            wrong_answers = [a for a in question.all_answers if a != question.correct_answer]
+            random.shuffle(wrong_answers)
+            keep_wrong = wrong_answers[0]
+            keep_answers = [question.correct_answer, keep_wrong]
+            random.shuffle(keep_answers)
+            return {"lifeline": "fifty_fifty", "keep_answers": keep_answers}
+
+        # ask_the_audience
+        difficulty = question.difficulty.lower()
+        if difficulty == "easy":
+            correct_pct = random.randint(70, 90)
+        elif difficulty == "hard":
+            correct_pct = random.randint(25, 50)
+        else:
+            correct_pct = random.randint(45, 70)
+
+        # Check if 50:50 was already used this question by looking at current answers
+        remaining_answers = question.all_answers
+        if "fifty_fifty" in player.lifelines_used or self._has_fifty_fifty_active(game, sid):
+            # We can't know which answers were kept from here, so use all answers
+            # The client will only show the non-eliminated ones
+            pass
+
+        remaining = 100 - correct_pct
+        other_answers = [a for a in remaining_answers if a != question.correct_answer]
+        percentages = {question.correct_answer: correct_pct}
+
+        for i, ans in enumerate(other_answers):
+            if i == len(other_answers) - 1:
+                percentages[ans] = remaining
+            else:
+                pct = random.randint(0, remaining)
+                percentages[ans] = pct
+                remaining -= pct
+
+        return {"lifeline": "ask_the_audience", "percentages": percentages}
+
+    def _has_fifty_fifty_active(self, game: Game, sid: str) -> bool:
+        """Check if the player used 50:50 (already tracked in lifelines_used)."""
+        player = game.players.get(sid)
+        return player is not None and "fifty_fifty" in player.lifelines_used
+
     def reset_for_replay(self, game: Game):
         game.state = GameState.LOBBY
         game.questions = []
+        game.questions_expected = 0
         game.current_question_index = -1
         for p in game.players.values():
             p.score = 0
             p.current_answer = None
             p.answer_time = None
+            p.lifelines_used = set()
 
     def _sanitize(self, text: str) -> str:
         text = html.escape(text.strip())

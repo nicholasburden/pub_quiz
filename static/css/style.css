@@ -190,6 +190,116 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .timer-fill.danger { background: var(--red); }
 .timer-text { text-align: center; font-size: 1.5rem; font-weight: 700; }
 
+/* === Toggle label === */
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+.toggle-label input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
+
+/* === Lifelines === */
+.lifelines-bar {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.lifeline-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-card);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, opacity 0.3s;
+}
+.lifeline-btn:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.2);
+}
+.lifeline-btn:disabled {
+    cursor: not-allowed;
+}
+.lifeline-btn.used {
+    opacity: 0.4;
+    border-color: var(--border);
+    background: var(--bg);
+    text-decoration: line-through;
+}
+.lifeline-btn svg { width: 24px; height: 24px; flex-shrink: 0; }
+
+/* Eliminated answers (50:50) */
+.answer-btn.eliminated {
+    opacity: 0.2;
+    pointer-events: none;
+    text-decoration: line-through;
+}
+
+/* Ask the Audience overlay */
+.ata-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+.ata-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 480px;
+}
+.ata-modal h3 {
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+.ata-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.ata-bar-label {
+    flex: 0 0 35%;
+    font-size: 0.85rem;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ata-bar-track {
+    flex: 1;
+    height: 24px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.ata-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    border-radius: 4px;
+    transition: width 0.6s ease-out;
+}
+.ata-bar-pct {
+    flex: 0 0 3rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: right;
+}
+
 /* === Quiz === */
 .quiz-header { margin-bottom: 1rem; }
 .quiz-info { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem; }
