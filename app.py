@@ -1,7 +1,7 @@
 """Entry point: Flask + SocketIO initialization."""
 
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 import logging
 
@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
 
-socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode="gevent", cors_allowed_origins="*")
 
 game_manager = GameManager()
 
