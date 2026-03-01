@@ -6,6 +6,7 @@ import random
 import time
 import logging
 
+import gevent
 import requests
 
 from config import (
@@ -31,7 +32,7 @@ class OpenTDBClient:
         now = time.time()
         elapsed = now - self._last_request_time
         if elapsed < OPENTDB_RATE_LIMIT:
-            time.sleep(OPENTDB_RATE_LIMIT - elapsed)
+            gevent.sleep(OPENTDB_RATE_LIMIT - elapsed)
         self._last_request_time = time.time()
 
     def _get_token(self) -> str | None:
@@ -163,7 +164,7 @@ class OpenTDBClient:
             # Rate limited — back off and retry once
             if code == 5:
                 logger.warning("OpenTDB rate limited (code 5), backing off 10s")
-                time.sleep(10)
+                gevent.sleep(10)
                 self._last_request_time = 0.0  # force full rate-limit wait on next call
                 self._rate_limit()
                 resp = requests.get(OPENTDB_API_URL, params=params, timeout=15)
