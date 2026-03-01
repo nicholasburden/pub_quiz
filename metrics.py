@@ -35,6 +35,10 @@ CONNECTED_PLAYERS = Gauge(
     "pubquiz_connected_players",
     "Number of currently connected players across all games",
 )
+QUESTION_CACHE_SIZE = Gauge(
+    "pubquiz_question_cache_size",
+    "Number of questions currently in the pre-fetch cache",
+)
 
 # Histogram
 ANSWER_TIME_SECONDS = Histogram(
@@ -58,3 +62,6 @@ def update_live_gauges(game_manager):
         connected += sum(1 for p in game.players.values() if p.connected)
 
     CONNECTED_PLAYERS.set(connected)
+
+    from api.question_cache import question_cache
+    QUESTION_CACHE_SIZE.set(question_cache.total_cached())

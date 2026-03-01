@@ -159,6 +159,17 @@ class OpenTDBClient:
             data = resp.json()
 
             code = data.get("response_code", -1)
+
+            # Rate limited — back off and retry once
+            if code == 5:
+                logger.warning("OpenTDB rate limited (code 5), backing off 10s")
+                time.sleep(10)
+                self._last_request_time = 0.0  # force full rate-limit wait on next call
+                self._rate_limit()
+                resp = requests.get(OPENTDB_API_URL, params=params, timeout=15)
+                data = resp.json()
+                code = data.get("response_code", -1)
+
             if code == 4:
                 # Token exhausted, reset and retry once
                 self._reset_token()
@@ -169,7 +180,7 @@ class OpenTDBClient:
                     resp = requests.get(OPENTDB_API_URL, params=params, timeout=15)
                     data = resp.json()
 
-            if data.get("response_code") != 0:
+            if data.get("response_code") not in (0, 5):
                 logger.warning("OpenTDB returned code %s", data.get("response_code"))
                 # Try without token
                 params.pop("token", None)

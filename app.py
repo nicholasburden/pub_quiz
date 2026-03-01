@@ -29,6 +29,11 @@ app.register_blueprint(bp)
 
 register_events(socketio, game_manager)
 
+from api.question_cache import start_replenishment
+from api.opentdb import opentdb
+
+start_replenishment(opentdb, socketio)
+
 
 @app.route("/metrics")
 def metrics():

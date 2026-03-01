@@ -19,7 +19,7 @@ socket.emit('join_game', {
 socket.on('game_state', (data) => {
     if (data.state === 'lobby') {
         window.location.href = '/lobby/' + gameId;
-    } else if (data.state === 'question_active' || data.state === 'playing') {
+    } else if (data.state === 'question_active' || data.state === 'playing' || data.state === 'question_results') {
         window.location.href = '/quiz/' + gameId;
     }
 });

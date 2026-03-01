@@ -8,6 +8,7 @@ const isHost = Session.isHost();
 const questionCounter = document.getElementById('question-counter');
 const categoryBadge = document.getElementById('category-badge');
 const difficultyBadge = document.getElementById('difficulty-badge');
+const timerBar = document.getElementById('timer-bar');
 const timerFill = document.getElementById('timer-fill');
 const timerText = document.getElementById('timer-text');
 const questionText = document.getElementById('question-text');
@@ -32,6 +33,11 @@ let answered = false;
 let selectedAnswer = null;
 let lifelinesUsed = { fifty_fifty: false, ask_the_audience: false };
 let lifelinesEnabled = true;
+
+const reconnectingOverlay = document.getElementById('reconnecting-overlay');
+function hideReconnecting() {
+    if (reconnectingOverlay) reconnectingOverlay.style.display = 'none';
+}
 
 // --- Join game room via socket ---
 socket.emit('join_game', {
@@ -126,6 +132,7 @@ function updateLifelineButtons() {
 
 // --- New question ---
 socket.on('new_question', (data) => {
+    hideReconnecting();
     answered = false;
     selectedAnswer = null;
     currentTimeLimit = data.time_limit;
@@ -135,6 +142,8 @@ socket.on('new_question', (data) => {
     resultsSection.style.display = 'none';
     answerStatus.style.display = 'none';
     ataOverlay.style.display = 'none';
+    timerBar.style.display = '';
+    timerText.style.display = '';
 
     questionCounter.textContent = `Question ${data.question_number} / ${data.total_questions}`;
     categoryBadge.textContent = data.category;
@@ -142,14 +151,20 @@ socket.on('new_question', (data) => {
 
     questionText.textContent = data.text;
 
-    // Reset timer
+    // Reset timer — on reconnect, `remaining` may be less than `time_limit`
+    const fullTime = data.time_limit;
+    const remaining = data.remaining !== undefined ? data.remaining : fullTime;
+    const startPct = (remaining / fullTime) * 100;
+
     timerFill.style.transition = 'none';
-    timerFill.style.width = '100%';
+    timerFill.style.width = startPct + '%';
     timerFill.className = 'timer-fill';
-    timerText.textContent = data.time_limit + 's';
+    if (remaining <= 5) timerFill.classList.add('danger');
+    else if (remaining <= 10) timerFill.classList.add('warning');
+    timerText.textContent = remaining + 's';
     // Force reflow then animate
     void timerFill.offsetWidth;
-    timerFill.style.transition = `width ${data.time_limit}s linear`;
+    timerFill.style.transition = `width ${remaining}s linear`;
     timerFill.style.width = '0%';
 
     // Render answer buttons
@@ -218,9 +233,12 @@ socket.on('player_answered', (data) => {
 
 // --- Question results ---
 socket.on('question_results', (data) => {
+    hideReconnecting();
     questionSection.style.display = 'none';
     resultsSection.style.display = 'block';
     lifelinesBar.style.display = 'none';
+    timerBar.style.display = 'none';
+    timerText.style.display = 'none';
 
     correctAnswerDisplay.textContent = 'Correct answer: ' + data.correct_answer;
 
@@ -280,6 +298,7 @@ socket.on('game_finished', () => {
 
 // --- Restore lifeline state from game_state on reconnect ---
 socket.on('game_state', (data) => {
+    hideReconnecting();
     if (data.state === 'lobby') {
         window.location.href = '/lobby/' + gameId;
     } else if (data.state === 'finished') {

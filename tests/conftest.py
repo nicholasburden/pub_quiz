@@ -180,11 +180,20 @@ def app_env():
     app.register_blueprint(bp)
     register_events(sio, gm)
 
+    # Cap sleeps at 50ms — fast enough to not add up, slow enough to avoid races
+    original_sleep = sio.sleep
+    sio.sleep = lambda s=0: original_sleep(min(s, 0.05))
+
     with patch("api.socket_events.opentdb") as mock_otdb, \
-         patch("api.routes.opentdb") as mock_otdb_routes:
+         patch("api.routes.opentdb") as mock_otdb_routes, \
+         patch("api.socket_events.question_cache") as mock_cache:
         mock_otdb.fetch_questions.return_value = list(FAKE_QUESTIONS)
         mock_otdb.fetch_questions_progressive.side_effect = lambda *a, **kw: iter([list(FAKE_QUESTIONS)])
         mock_otdb.get_categories.return_value = list(FAKE_CATEGORIES)
         mock_otdb_routes.get_categories.return_value = list(FAKE_CATEGORIES)
+        mock_cache.get_questions.return_value = (list(FAKE_QUESTIONS), 0)
+        mock_cache.clear_game.return_value = None
 
         yield app, sio, gm, mock_otdb.fetch_questions, mock_otdb.get_categories, mock_otdb.fetch_questions_progressive
+
+    sio.sleep = original_sleep

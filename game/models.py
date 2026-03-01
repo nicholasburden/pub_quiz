@@ -1,5 +1,6 @@
 """Data models for the pub quiz game."""
 
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -54,3 +55,6 @@ class Game:
     current_question_index: int = -1
     question_start_time: float = 0.0
     questions_expected: int = 0
+    pending_first_question: bool = False
+    last_question_results: dict | None = None
+    questions_ready: threading.Event = field(default_factory=threading.Event)

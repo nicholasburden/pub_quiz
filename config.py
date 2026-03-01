@@ -32,3 +32,10 @@ OPENTDB_TOKEN_URL = "https://opentdb.com/api_token.php"
 OPENTDB_CATEGORY_URL = "https://opentdb.com/api_category.php"
 OPENTDB_RATE_LIMIT = 5.5  # seconds between requests
 OPENTDB_CATEGORY_CACHE_TTL = 3600  # 1 hour
+
+# Question Cache
+QUESTION_CACHE_BATCH_SIZE = 10
+QUESTION_CACHE_TARGET_PER_BUCKET = 20
+QUESTION_CACHE_CATEGORIES = [9, 10, 11, 12, 17, 18, 21, 22, 23]
+# 9=General Knowledge, 10=Books, 11=Film, 12=Music,
+# 17=Science & Nature, 18=Computers, 21=Sports, 22=Geography, 23=History

@@ -3,6 +3,7 @@
 import html
 import random
 import secrets
+import threading
 import time
 
 from config import (
@@ -220,9 +221,11 @@ class GameManager:
         game.questions_expected = expected_total or len(questions)
         game.current_question_index = -1
         game.state = GameState.PLAYING
+        game.pending_first_question = True
 
     def append_questions(self, game: Game, new_questions: list[Question]):
         game.questions.extend(new_questions)
+        game.questions_ready.set()
 
     def advance_question(self, game: Game) -> Question | None:
         game.current_question_index += 1
@@ -383,6 +386,9 @@ class GameManager:
         game.questions = []
         game.questions_expected = 0
         game.current_question_index = -1
+        game.pending_first_question = False
+        game.last_question_results = None
+        game.questions_ready = threading.Event()
         for p in game.players.values():
             p.score = 0
             p.current_answer = None

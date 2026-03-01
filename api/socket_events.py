@@ -10,6 +10,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from game.manager import GameManager
 from game.models import GameState
 from api.opentdb import opentdb
+from api.question_cache import question_cache
 from metrics import PLAYERS_JOINED_TOTAL
 
 logger = logging.getLogger(__name__)
@@ -52,8 +53,11 @@ def register_events(socketio: SocketIO, gm: GameManager):
                 "players": _players_list(game),
                 "new_host": game.host_sid,
             }, room=game.id)
-            # If question is active, check if all remaining answered
-            if game.state == GameState.QUESTION_ACTIVE and gm.all_connected_answered(game):
+            # If question is active, check if all remaining answered.
+            # Skip if nobody is connected (e.g. page navigation) to avoid
+            # ending the question on a vacuously-true empty-set check.
+            has_connected = any(p.connected for p in game.players.values())
+            if has_connected and game.state == GameState.QUESTION_ACTIVE and gm.all_connected_answered(game):
                 _end_question(socketio, gm, game)
 
     @socketio.on("join_game")
@@ -125,6 +129,34 @@ def register_events(socketio: SocketIO, gm: GameManager):
             "players": _players_list(game),
         }, room=game_id)
 
+        # Host reconnecting on quiz page after page navigation — send
+        # the first question that was missed during the navigate.
+        if (
+            game.pending_first_question
+            and game.state == GameState.PLAYING
+            and game.host_sid == sid
+        ):
+            game.pending_first_question = False
+            _send_next_question(socketio, gm, game)
+        elif game.state == GameState.QUESTION_ACTIVE:
+            # Reconnecting player joins mid-question — send current question
+            question = game.questions[game.current_question_index]
+            remaining = max(0, game.config.time_limit - int(time.time() - game.question_start_time))
+            emit("new_question", {
+                "question_number": game.current_question_index + 1,
+                "total_questions": game.questions_expected,
+                "text": question.text,
+                "answers": question.all_answers,
+                "category": question.category,
+                "difficulty": question.difficulty,
+                "time_limit": game.config.time_limit,
+                "remaining": remaining,
+                "lifelines": game.config.lifelines,
+            })
+        elif game.state == GameState.QUESTION_RESULTS:
+            if game.last_question_results:
+                emit("question_results", game.last_question_results)
+
     @socketio.on("update_config")
     def on_update_config(data):
         sid = request.sid
@@ -146,34 +178,63 @@ def register_events(socketio: SocketIO, gm: GameManager):
         if game.state != GameState.LOBBY:
             return
 
-        emit("game_starting", {"message": "Fetching questions..."}, room=game.id)
-
         cfg = game.config
-        progressive = opentdb.fetch_questions_progressive(
+        cached_qs, shortfall = question_cache.get_questions(
             amount=cfg.num_questions,
             categories=cfg.categories if cfg.categories else None,
             difficulty=cfg.difficulty,
+            game_id=game.id,
         )
 
-        # Get first batch synchronously
-        first_batch = next(progressive, [])
-        if not first_batch:
-            emit("error", {"message": "Failed to fetch questions from OpenTDB. Please try again."})
-            return
+        if shortfall == 0:
+            # Full cache hit — instant start
+            gm.set_questions(game, cached_qs)
 
-        gm.set_questions(game, list(first_batch), cfg.num_questions)
+            emit("game_started", {
+                "total_questions": game.questions_expected,
+            }, room=game.id)
 
-        emit("game_started", {
-            "total_questions": game.questions_expected,
-        }, room=game.id)
+        elif cached_qs:
+            # Partial cache hit — start with what we have, fetch rest in background
+            gm.set_questions(game, cached_qs, cfg.num_questions)
 
-        # Fetch remaining batches in background
-        socketio.start_background_task(
-            _fetch_remaining, socketio, gm, game, progressive
-        )
+            emit("game_started", {
+                "total_questions": game.questions_expected,
+            }, room=game.id)
 
-        # Start the first question after a brief delay
-        socketio.sleep(1)
+            socketio.start_background_task(
+                _fetch_shortfall, socketio, gm, game, shortfall, cfg
+            )
+
+        else:
+            # Complete cache miss — fall back to existing progressive fetch
+            emit("game_starting", {"message": "Fetching questions..."}, room=game.id)
+
+            progressive = opentdb.fetch_questions_progressive(
+                amount=cfg.num_questions,
+                categories=cfg.categories if cfg.categories else None,
+                difficulty=cfg.difficulty,
+            )
+
+            first_batch = next(progressive, [])
+            if not first_batch:
+                emit("error", {"message": "Failed to fetch questions from OpenTDB. Please try again."})
+                return
+
+            gm.set_questions(game, list(first_batch), cfg.num_questions)
+
+            emit("game_started", {
+                "total_questions": game.questions_expected,
+            }, room=game.id)
+
+            socketio.start_background_task(
+                _fetch_remaining, socketio, gm, game, progressive
+            )
+
+        # Send the first question immediately. In production the host's
+        # lobby page will navigate away on game_started and may miss this;
+        # the on_join_game handler re-sends it when quiz.js reconnects.
+        game.pending_first_question = False
         _send_next_question(socketio, gm, game)
 
     @socketio.on("submit_answer")
@@ -248,6 +309,7 @@ def register_events(socketio: SocketIO, gm: GameManager):
 
         game_id = game.id
         _active_timers.pop(game_id, None)
+        question_cache.clear_game(game_id)
         emit("game_deleted", {}, room=game_id)
         gm.delete_game(game_id, sid)
 
@@ -261,13 +323,27 @@ def _fetch_remaining(socketio: SocketIO, gm: GameManager, game, progressive):
         gm.append_questions(game, batch)
 
 
+def _fetch_shortfall(socketio: SocketIO, gm: GameManager, game, shortfall, cfg):
+    """Background task to fetch questions the cache couldn't provide."""
+    if game.state == GameState.FINISHED or game.id not in gm.games:
+        return
+    questions = opentdb.fetch_questions(
+        amount=shortfall,
+        categories=cfg.categories if cfg.categories else None,
+        difficulty=cfg.difficulty,
+    )
+    if questions:
+        random.shuffle(questions)
+        gm.append_questions(game, questions)
+
+
 def _send_next_question(socketio: SocketIO, gm: GameManager, game):
     question = gm.advance_question(game)
 
     # If question not loaded yet, wait for background fetch
     if not question and game.state != GameState.FINISHED:
-        for _ in range(30):  # wait up to 15s
-            socketio.sleep(0.5)
+        game.questions_ready.clear()
+        if game.questions_ready.wait(timeout=15):
             if game.current_question_index < len(game.questions):
                 question = game.questions[game.current_question_index]
                 game.state = GameState.QUESTION_ACTIVE
@@ -275,13 +351,13 @@ def _send_next_question(socketio: SocketIO, gm: GameManager, game):
                 for p in game.players.values():
                     p.current_answer = None
                     p.answer_time = None
-                break
         if not question:
             # Timed out waiting — end game with what we have
             game.questions_expected = len(game.questions)
             game.state = GameState.FINISHED
 
     if not question:
+        question_cache.clear_game(game.id)
         rankings = gm.get_final_rankings(game)
         socketio.emit("game_finished", {"rankings": rankings}, room=game.id)
         return
@@ -334,6 +410,7 @@ def _end_question(socketio: SocketIO, gm: GameManager, game):
         return
 
     results = gm.calculate_question_results(game)
+    game.last_question_results = results
     socketio.emit("question_results", results, room=game.id)
 
     # Auto-advance after delay
