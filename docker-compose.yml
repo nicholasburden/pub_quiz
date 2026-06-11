@@ -2,5 +2,6 @@ services:
   pub-quiz:
     build: .
     ports:
-      - "5000:5000"
+      # Host port 5001 — 5000 is taken by the servy-index landing page.
+      - "5001:5000"
     restart: unless-stopped
