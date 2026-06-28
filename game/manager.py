@@ -50,7 +50,9 @@ class GameManager:
         if not game:
             return None, "Game not found"
 
-        player_name = self._sanitize(player_name) or f"Player {len(game.players) + 1}"
+        player_name = self._sanitize(player_name)
+        if not player_name:
+            return None, "Player name is required"
 
         # Check for reconnect by name (works in any game state)
         for existing_sid, player in list(game.players.items()):
@@ -366,13 +368,15 @@ class GameManager:
         other_answers = [a for a in remaining_answers if a != question.correct_answer]
         percentages = {question.correct_answer: correct_pct}
 
-        for i, ans in enumerate(other_answers):
-            if i == len(other_answers) - 1:
-                percentages[ans] = remaining
-            else:
-                pct = random.randint(0, remaining)
-                percentages[ans] = pct
-                remaining -= pct
+        # Uniform partition of `remaining` across the wrong answers: pick
+        # n-1 cut points in [0, remaining] and use the gaps as shares. The
+        # previous approach gave the first wrong answer a uniform draw over
+        # the whole remaining pool, biasing it larger than the others.
+        if other_answers:
+            cuts = sorted(random.randint(0, remaining) for _ in range(len(other_answers) - 1))
+            boundaries = [0] + cuts + [remaining]
+            for ans, lo, hi in zip(other_answers, boundaries, boundaries[1:]):
+                percentages[ans] = hi - lo
 
         return {"lifeline": "ask_the_audience", "percentages": percentages}
 

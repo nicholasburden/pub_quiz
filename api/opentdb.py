@@ -76,7 +76,6 @@ class OpenTDBClient:
             return self._categories_cache
 
         try:
-            self._rate_limit()
             resp = requests.get(OPENTDB_CATEGORY_URL, timeout=10)
             data = resp.json()
             self._categories_cache = data.get("trivia_categories", [])

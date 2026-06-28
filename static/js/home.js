@@ -16,9 +16,10 @@ if (savedName) {
 // --- Create game ---
 createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const gameName = document.getElementById('game-name').value.trim();
-    const hostName = document.getElementById('host-name').value.trim();
-    if (!gameName || !hostName) return;
+    const gameNameInput = document.getElementById('game-name');
+    const hostNameInput = document.getElementById('host-name');
+    const gameName = gameNameInput.value.trim() || gameNameInput.placeholder;
+    const hostName = hostNameInput.value.trim() || hostNameInput.placeholder;
 
     const btn = createForm.querySelector('button');
     btn.disabled = true;
